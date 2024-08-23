@@ -8,3 +8,7 @@ Recent advancements have introduced smaller, more efficient models like TinyBERT
 This project seeks to explore this possibility by evaluating whether merging a fine-tuned small model with a large pre-trained model can improve performance on specific NLP tasks, compared to the traditional approach of fine-tuning the large model alone. By leveraging the GLUE benchmark, which is widely recognized for benchmarking various NLP tasks, this study aims to provide insights into the potential benefits and trade-offs of model merging in practical applications.
 
 The primary focus will be on determining whether a hybrid approach can offer a superior balance of accuracy, efficiency, and resource utilization, thereby contributing to the development of more versatile and scalable NLP systems.
+
+## Data
+
+To download the data, please follow 
