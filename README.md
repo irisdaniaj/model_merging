@@ -1,7 +1,7 @@
 #  Evaluating the Impact of Model Merging: Enhancing NLP Task Performance by Integrating Fine-Tuned Small Models with BERT Base
 
 
-In the rapidly evolving field of Natural Language Processing (NLP), the quest for building more efficient and effective models is continuous. Traditional approaches often involve fine-tuning large pre-trained models, like BERT Large, to achieve state-of-the-art performance on various NLP tasks such as sentiment analysis, question answering, and named entity recognition. However, the computational costs and resource demands associated with fine-tuning these large models can be prohibitive, especially in real-world applications where efficiency is crucial.
+In the rapidly evolving field of Natural Language Processing (NLP), the quest for building more efficient and effective models is continuous. Traditional approaches often involve fine-tuning large pre-trained models, like BERT Base, to achieve state-of-the-art performance on various NLP tasks such as sentiment analysis, question answering, and named entity recognition. However, the computational costs and resource demands associated with fine-tuning these large models can be prohibitive, especially in real-world applications where efficiency is crucial.
 
 Recent advancements have introduced smaller, more efficient models like TinyBERT, which are designed to retain much of the performance of their larger counterparts while significantly reducing computational requirements. These models have opened up new possibilities for creating lightweight NLP solutions. Yet, the question remains: can the strengths of these smaller models be effectively combined with the power of large pre-trained models to further enhance performance?
 
