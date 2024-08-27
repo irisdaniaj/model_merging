@@ -15,8 +15,7 @@ To download the data, please follow
 
 
 ## TODO
-- [ ] download data
-- [ ] -datasets: SST-2(classical sentiment analysi), STS-B(regression: Semantic Textual Similarity), RTE(Textual Entailment / Natural Language Inference (NLI))
+- [ ] document so far what I have done here(write it nicely)
 - [ ] fine tune bert base on the data and save it --> save hyperparamters and wieghts
 - [ ] fine tune tinybert and save it --> save hyperparamters and weights
 - [ ] merge the finetuned tinybert with pretrained unfinetuned bert base --> save hyperparameters and wieghts(how the hell do i merge them?)
