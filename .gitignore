@@ -1,0 +1,41 @@
+# Models and tokenizers
+models/*
+
+
+# Data files
+data/*
+
+# Temporary files and logs
+*.log
+*.out
+*.tmp
+*.pickle
+*.pkl
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+.env/
+.venv/
+env/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Large output files
+outputs/
+*.h5
+*.hdf5
+*.csv
+*.tsv
+
+# Configurations and secrets
+config.json
+secret.yaml
