@@ -7,7 +7,7 @@ Recent advancements have introduced smaller, more efficient models like [TinyBER
 
 This project seeks to explore this possibility by evaluating whether merging a fine-tuned small model with a large pre-trained model can improve performance on specific NLP tasks, compared to the traditional approach of fine-tuning the large model alone. By leveraging the [GLUE benchmark](https://gluebenchmark.com/), which is widely recognized for benchmarking various NLP tasks, this study aims to provide insights into the potential benefits and trade-offs of model merging in practical applications.
 
-The primary focus will be on determining whether a hybrid approach can offer a superior balance of accuracy and resource utilization compared to the more classic approach. To do this we will use BERT Base as the large model and TinyBERT as the lightweight model and we will compare their performance on three different GLUE datasets: [SST-B](https://paperswithcode.com/dataset/sts-benchmark), [SST-2](https://huggingface.co/datasets/gimmaru/glue-sst2), [RTE](https://paperswithcode.com/dataset/rte) in terms of accurancy and FLOPs. 
+The primary focus will be on determining whether a hybrid approach can offer a superior balance of accuracy and resource utilization compared to the more classical approach. To do this we will use BERT Base as the large model and TinyBERT as the lightweight model and we will compare their performance on three different GLUE datasets: [SST-B](https://paperswithcode.com/dataset/sts-benchmark), [SST-2](https://huggingface.co/datasets/gimmaru/glue-sst2), [RTE](https://paperswithcode.com/dataset/rte) in terms of accurancy and FLOPs. 
 
 ## Usage
 
