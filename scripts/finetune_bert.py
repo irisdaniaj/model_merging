@@ -7,7 +7,7 @@ import json
 
 # Define model name and paths
 model_name = 'bert-base-uncased'
-data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "prepared")
 models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "bert-base")
 
 # Ensure the models directory exists
@@ -62,7 +62,7 @@ for dataset_name in datasets_to_finetune:
         logging_dir='./logs',
         logging_steps=10,
         load_best_model_at_end=True,
-        metric_for_best_model="accuracy"
+        metric_for_best_model="eval_loss"  # Use "eval_loss" since "eval_accuracy" is not available
     )
 
     # Initialize Trainer
@@ -83,13 +83,19 @@ for dataset_name in datasets_to_finetune:
     model.save_pretrained(model_save_path)
     tokenizer.save_pretrained(model_save_path)
 
-    # Save the training arguments and metrics
+    # Save the training arguments (hyperparameters)
+    training_args_save_path = os.path.join(model_save_path, "training_args.json")
+    with open(training_args_save_path, "w") as f:
+        json.dump(training_args.to_dict(), f)
+
+    # Save the training metrics
     metrics = trainer.evaluate()
     metrics_save_path = os.path.join(model_save_path, "metrics.json")
     with open(metrics_save_path, "w") as f:
         json.dump(metrics, f)
 
     print(f"Model fine-tuned on {dataset_name.upper()} and saved in {model_save_path}")
+    print(f"Training hyperparameters saved in {training_args_save_path}")
     print(f"Metrics saved in {metrics_save_path}")
 
 print("Fine-tuning complete for all datasets!")
