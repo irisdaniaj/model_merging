@@ -25,7 +25,7 @@ conda create --name myenv --file requirements.txt
 ```
 navigate to the scripts folder 
 ```
-cd scripts
+cd src
 ```
 and run data_download.py to download tha datasets
 ```
