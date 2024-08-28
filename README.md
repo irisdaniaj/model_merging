@@ -19,9 +19,10 @@ move to the repository
 ```
 cd model_merging
 ```
-and install the requirements
+and install the requirements and activate the conda environment
 ```
 conda create --name myenv --file requirements.txt
+conda activate myenv
 ```
 navigate to the scripts folder 
 ```
