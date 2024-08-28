@@ -41,7 +41,6 @@ python model_download.py
 ## TODO
 
 - [ ] fine tune bert base on the data and save it --> save hyperparamters and wieghts
-- [ ] fine tune tinybert and save it --> save hyperparamters and weights
 - [ ] merge the finetuned tinybert with pretrained unfinetuned bert base --> save hyperparameters and wieghts(how the hell do i merge them?)
 - [ ] comprare the two models (comparison in terms of metrics and some hardware constraints )
 - [ ] remember to create the environment .txt
