@@ -56,7 +56,9 @@ For fine-tuning TinyBERT, I used an AMD Ryzen 7 7840HS processor with Radeon 780
 
 - [ ] fine tune bert base on the data and save it --> save hyperparamters and wieghts
 - [ ] merge the finetuned tinybert with pretrained unfinetuned bert base --> save hyperparameters and wieghts(how the hell do i merge them?)
-- [ ] comprare the two models (comparison in terms of metrics and some hardware constraints )
+- [ ] run infernce on datasets using bert base
+- [ ] run inference on datasets using merge model
+- [ ] comprare the two models (comparison in terms of metrics and flops )
 - [ ] remember to create the environment .txt
 - [ ] In the report justify why I choose BERT Base and TinyBERT. also table with number of paramters of the BERT models that i can find.
 - [ ] justify why I choose those datasets. 
