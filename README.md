@@ -45,4 +45,6 @@ python model_download.py
 - [ ] merge the finetuned tinybert with pretrained unfinetuned bert base --> save hyperparameters and wieghts(how the hell do i merge them?)
 - [ ] comprare the two models (comparison in terms of metrics and some hardware constraints )
 - [ ] remember to create the environment .txt
+- [ ] In the report justify why I choose BERT Base and TinyBERT. also table with number of paramters of the BERT models that i can find.
+- [ ] justify why I choose those datasets. 
 
