@@ -35,7 +35,10 @@ Now, run model_download.py to download the models(BERT Base uncased and TinyBERT
 ```
 python model_download.py
 ```
-
+We will know fine tune TinyBERT on the datasets and save the hyperparameters and model's metric in the `training_args.json` and `metrics.json` files respectevly. These files will be saved in the models/tynybert folders. 
+```
+python finetune_tinybert.py
+```
 
 
 ## TODO
