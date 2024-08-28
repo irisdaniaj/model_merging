@@ -1,10 +1,10 @@
 # Models and tokenizers
 models/*
-
+!models/.gitkeep
 
 # Data files
 data/*
-
+!data/.gitkeep
 # Temporary files and logs
 *.log
 *.out
