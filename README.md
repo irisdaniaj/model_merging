@@ -39,6 +39,16 @@ We will now fine-tune TinyBERT on each dataset and save the corresponding hyperp
 ```
 python finetune_tinybert.py
 ```
+Now the same will be done for BERT Base.(disclaimer run in on cluster) 
+
+```
+python finetune_bert.py
+```
+
+## Hardware Requirements 
+
+For fine-tuning TinyBERT, I used an AMD Ryzen 7 7840HS processor with Radeon 780M integrated graphics, featuring 8 cores and 16 threads, along with 32 GB of RAM. Depending on your hardware setup, you may need to adjust the training parameters, such as batch size or learning rate. If your system has less computing power or memory, consider using a dedicated computing cluster or cloud-based resources to ensure efficient and effective fine-tuning.
+
 
 
 
