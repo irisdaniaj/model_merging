@@ -15,6 +15,10 @@ To reproduce this work, first clone the repository
 ```
 git clone https://github.com/irisdaniaj/model_merging.git
 ```
+move to the repository 
+```
+cd model_merging
+```
 and install the requirements
 ```
 conda create --name myenv --file requirements.txt
