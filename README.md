@@ -35,10 +35,11 @@ Now, run model_download.py to download the models(BERT Base uncased and TinyBERT
 ```
 python model_download.py
 ```
-We will know fine tune TinyBERT on the datasets and save the hyperparameters and model's metric in the `training_args.json` and `metrics.json` files respectevly. These files will be saved in the models/tynybert folders. 
+We will now fine-tune TinyBERT on each dataset and save the corresponding hyperparameters and model metrics in `training_args.json` and `metrics.json` files, respectively, for each dataset. This process will create three new subfolders within the `models/tinybert` directory, each named after a specific dataset (stsb, sst2, rte). Each subfolder will contain the fine-tuned model, the tokenizer, and the associated configuration files, allowing for easy access and reproducibility.
 ```
 python finetune_tinybert.py
 ```
+
 
 
 ## TODO
