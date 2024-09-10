@@ -19,10 +19,11 @@ move to the repository
 ```
 cd model_merging
 ```
-and install the requirements and activate the conda environment
+and create the conda environment and install the requirements
 ```
-conda create --name myenv --file requirements.txt
+conda crete --name myenv python=3.11.9
 conda activate myenv
+pip install requirements.txt
 ```
 navigate to the scripts folder 
 ```
@@ -31,6 +32,10 @@ cd src
 and run data_download.py to download tha datasets
 ```
 python data_download.py
+```
+and to preprocess them run 
+```
+python prepare_data.py
 ```
 Now, run model_download.py to download the models(BERT Base uncased and TinyBERT uncased)
 ```
