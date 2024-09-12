@@ -2,12 +2,14 @@ import os
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
 from datasets import load_from_disk
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, mean_squared_error
+import scipy.stats
 import json
 
 # Define model name and paths
-model_name = 'bert-base-uncased'
-data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "prepared")
+# Define model name and paths for BERT base instead of TinyBERT
+model_name = 'bert-base-uncased'  # BERT base model identifier
+prepared_data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "prepared")
 models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "bert-base")
 
 # Ensure the models directory exists
@@ -16,63 +18,81 @@ os.makedirs(models_path, exist_ok=True)
 # Define datasets to fine-tune on
 datasets_to_finetune = ['stsb', 'sst2', 'rte']
 
-# Load tokenizer
+# Load tokenizer for BERT base
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 # Define function to compute metrics
-def compute_metrics(pred):
-    labels = pred.label_ids
-    preds = pred.predictions.argmax(-1)
-    acc = accuracy_score(labels, preds)
-    f1 = f1_score(labels, preds, average='weighted')
-    return {"accuracy": acc, "f1": f1}
+def compute_metrics(eval_pred, dataset_name):
+    predictions, labels = eval_pred
+    if dataset_name == 'stsb':  # Regression task
+        predictions = predictions[:, 0]  # Regression output is a single float per example
+        pearson_corr = scipy.stats.pearsonr(predictions, labels)[0]
+        mse = mean_squared_error(labels, predictions)
+        return {"pearson": pearson_corr, "mse": mse}
+    else:  # Classification tasks
+        preds = predictions.argmax(-1)
+        acc = accuracy_score(labels, preds)
+        f1 = f1_score(labels, preds, average='weighted')
+        return {"accuracy": acc, "f1": f1}
 
-# Fine-tune BERT on each dataset
+# Tokenization function
+def tokenize_function(example, dataset_name):
+    if dataset_name == 'stsb':
+        # Tokenization for sentence pair tasks (STS-B)
+        return tokenizer(example['sentence1'], example['sentence2'], padding="max_length", truncation=True)
+    elif dataset_name == 'rte':
+        # Tokenization for sentence pair tasks (RTE)
+        return tokenizer(example['sentence1'], example['sentence2'], padding="max_length", truncation=True)
+    else:
+        # Tokenization for single sentence tasks (SST-2)
+        return tokenizer(example['sentence'], padding="max_length", truncation=True)
+
+# Fine-tune BERT base on each dataset
 for dataset_name in datasets_to_finetune:
     print(f"Fine-tuning BERT base on {dataset_name.upper()} dataset...")
 
-    # Load dataset from disk
-    dataset = load_from_disk(os.path.join(data_path, dataset_name))
+    # Load prepared dataset from disk
+    dataset = load_from_disk(os.path.join(prepared_data_path, dataset_name))
 
     # Determine the number of labels
     num_labels = 1 if dataset_name == 'stsb' else 2  # 1 for regression (STS-B), 2 for classification (SST-2, RTE)
 
-    # Load model
+    # Load BERT base model from pre-trained weights
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
 
     # Tokenize the dataset
-    def tokenize_function(example):
-        if dataset_name == 'stsb':
-            return tokenizer(example['sentence1'], example['sentence2'], padding="max_length", truncation=True)
-        else:
-            return tokenizer(example['sentence'], padding="max_length", truncation=True)
+    tokenized_datasets = dataset.map(lambda x: tokenize_function(x, dataset_name), batched=True)
 
-    tokenized_datasets = dataset.map(tokenize_function, batched=True)
+    # Determine the metric for best model based on the dataset
+    if dataset_name == 'stsb':
+        metric_for_best_model = "eval_pearson"  # Regression task
+    else:
+        metric_for_best_model = "eval_loss"  # Classification tasks
 
-    # Define training arguments
+    # Define training arguments for fine-tuning BERT base
     training_args = TrainingArguments(
         output_dir=os.path.join(models_path, f"{dataset_name}_finetuned"),
         evaluation_strategy="epoch",
         learning_rate=2e-5,
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
-        num_train_epochs=3,
+        num_train_epochs=3,  # Adjust epochs as necessary for fine-tuning
         weight_decay=0.01,
         save_strategy="epoch",
         logging_dir='./logs',
         logging_steps=10,
         load_best_model_at_end=True,
-        metric_for_best_model="eval_loss"  # Use "eval_loss" since "eval_accuracy" is not available
+        metric_for_best_model=metric_for_best_model  # Use the appropriate metric
     )
 
-    # Initialize Trainer
+    # Initialize Trainer for fine-tuning
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=tokenized_datasets['train'],
         eval_dataset=tokenized_datasets['validation'],
         tokenizer=tokenizer,
-        compute_metrics=compute_metrics
+        compute_metrics=lambda eval_pred: compute_metrics(eval_pred, dataset_name)  # Pass dataset_name to compute_metrics
     )
 
     # Fine-tune the model
@@ -84,8 +104,8 @@ for dataset_name in datasets_to_finetune:
     tokenizer.save_pretrained(model_save_path)
 
     # Save the training arguments (hyperparameters)
-    training_args_save_path = os.path.join(model_save_path, "training_args.json")
-    with open(training_args_save_path, "w") as f:
+    hyperparameters_save_path = os.path.join(model_save_path, "training_args.json")
+    with open(hyperparameters_save_path, "w") as f:
         json.dump(training_args.to_dict(), f)
 
     # Save the training metrics
@@ -95,7 +115,8 @@ for dataset_name in datasets_to_finetune:
         json.dump(metrics, f)
 
     print(f"Model fine-tuned on {dataset_name.upper()} and saved in {model_save_path}")
-    print(f"Training hyperparameters saved in {training_args_save_path}")
     print(f"Metrics saved in {metrics_save_path}")
+    print(f"Hyperparameters saved in {hyperparameters_save_path}")
 
 print("Fine-tuning complete for all datasets!")
+
