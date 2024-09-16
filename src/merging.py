@@ -1,5 +1,5 @@
 import torch
-from transformers import BertForSequenceClassification, TinyBertForSequenceClassification
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, BertForSequenceClassification
 import os
 import json
 
@@ -28,7 +28,11 @@ def merge_weights(tinybert, bert_base, alpha):
 def merge_models_for_datasets(datasets, alpha=0.5):
     for dataset_name in datasets:
         tinybert_dataset_path = os.path.join(tinybert_path, f"{dataset_name}_finetuned")
-        tinybert_model = TinyBertForSequenceClassification.from_pretrained(tinybert_dataset_path)
+        
+        # Load TinyBERT with the same hidden size as BERT base
+        tinybert_model = AutoModelForSequenceClassification.from_pretrained('huawei-noah/TinyBERT_General_6L_768D')
+        tokenizer = AutoTokenizer.from_pretrained('huawei-noah/TinyBERT_General_6L_768D')  # Load TinyBERT tokenizer
+        
         bert_base_model = BertForSequenceClassification.from_pretrained(bert_base_path)
         
         # Merge models with alpha
@@ -39,6 +43,9 @@ def merge_models_for_datasets(datasets, alpha=0.5):
         os.makedirs(save_directory, exist_ok=True)
         merged_model.save_pretrained(save_directory)
 
+        # Save the tokenizer
+        tokenizer.save_pretrained(save_directory)
+
         # Save the hyperparameters (including alpha)
         hyperparameters = {
             "alpha": alpha
@@ -46,7 +53,7 @@ def merge_models_for_datasets(datasets, alpha=0.5):
         with open(os.path.join(save_directory, "hyperparameters.json"), 'w') as f:
             json.dump(hyperparameters, f)
 
-        print(f"Saved merged model and hyperparameters for {dataset_name} to {save_directory}")
+        print(f"Saved merged model and tokenizer for {dataset_name} to {save_directory}")
 
 # Run the merging process
 if __name__ == "__main__":

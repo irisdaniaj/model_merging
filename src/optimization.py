@@ -15,6 +15,7 @@ datasets_to_finetune = ['stsb', 'sst2', 'rte']
 
 # Load validation data using Hugging Face datasets
 def get_validation_dataloader(dataset_name):
+    data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "prepared")
     validation_data_path = os.path.join(data_path, dataset_name, "validation")
     
     # Load the validation dataset from disk
@@ -23,10 +24,19 @@ def get_validation_dataloader(dataset_name):
     # Load tokenizer (this should match the tokenizer used for TinyBERT)
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     
-    # Tokenize the dataset (batch process for efficiency)
-    def tokenize_function(example):
-        return tokenizer(example['text'], padding='max_length', truncation=True, max_length=128)
-    
+    # Tokenize the dataset based on its column structure
+    if dataset_name == 'stsb':  # STSB has sentence1, sentence2
+        def tokenize_function(example):
+            return tokenizer(example['sentence1'], example['sentence2'], padding='max_length', truncation=True, max_length=128)
+    elif dataset_name == 'sst2':  # SST-2 has a single sentence
+        def tokenize_function(example):
+            return tokenizer(example['sentence'], padding='max_length', truncation=True, max_length=128)
+    elif dataset_name == 'rte':  # RTE has sentence1, sentence2
+        def tokenize_function(example):
+            return tokenizer(example['sentence1'], example['sentence2'], padding='max_length', truncation=True, max_length=128)
+    else:
+        raise ValueError(f"Dataset {dataset_name} is not recognized or supported.")
+
     tokenized_dataset = dataset.map(tokenize_function, batched=True)
     
     # Set the format to PyTorch for direct use with DataLoader
@@ -44,12 +54,17 @@ def evaluate_model(model, dataloader):
     
     with torch.no_grad():
         for batch in dataloader:
-            input_ids, attention_mask, labels = batch['input_ids'], batch['attention_mask'], batch['labels']
+            input_ids, attention_mask, labels = batch['input_ids'], batch['attention_mask'], batch['label']
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            
+            # Apply argmax to get the predicted class labels (discrete values)
             preds = torch.argmax(outputs.logits, dim=-1)
-            predictions.extend(preds.tolist())
-            true_labels.extend(labels.tolist())
+            
+            # Convert predictions and labels to lists for evaluation
+            predictions.extend(preds.cpu().tolist())  # Move to CPU and convert to list
+            true_labels.extend(labels.cpu().tolist())  # Move to CPU and convert to list
     
+    # Now calculate accuracy using sklearn's accuracy_score
     accuracy = accuracy_score(true_labels, predictions)
     return accuracy
 

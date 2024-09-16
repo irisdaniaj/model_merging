@@ -5,8 +5,9 @@ from sklearn.metrics import accuracy_score, f1_score, mean_squared_error
 import scipy.stats
 import json
 
+
 # Define model name and paths
-model_name = 'huawei-noah/TinyBERT_General_4L_312D'  # TinyBERT model identifier
+model_name = 'huawei-noah/TinyBERT_General_6L_768D'  # TinyBERT model identifier
 prepared_data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "prepared")
 models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "tinybert")
 
