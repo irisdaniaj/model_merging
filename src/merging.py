@@ -1,72 +1,53 @@
-import os
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import BertForSequenceClassification, TinyBertForSequenceClassification
+import os
+import json
 
-# Define model paths
-tinybert_finetuned_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "tinybert", "stsb_finetuned")  # Update as necessary
-bert_base_model_name = "bert-base-uncased"
-merged_model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "merged_model")
+# Define paths
+models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+tinybert_path = os.path.join(models_path, "tinybert")
+bert_base_path = os.path.join(models_path, "bert-base")
+save_merged_model_path = os.path.join(models_path, "merged_model")
 
-# Ensure the merged model directory exists
-os.makedirs(merged_model_path, exist_ok=True)
+# Ensure directories exist
+os.makedirs(save_merged_model_path, exist_ok=True)
 
-# Load the fine-tuned TinyBERT model
-tinybert_model = AutoModelForSequenceClassification.from_pretrained(tinybert_finetuned_path)
+datasets_to_finetune = ['stsb', 'sst2', 'rte']
 
-# Load the pre-trained BERT base model
-bert_base_model = AutoModelForSequenceClassification.from_pretrained(bert_base_model_name, num_labels=tinybert_model.config.num_labels)
-
-# Initialize a new model with the same configuration
-merged_model = AutoModelForSequenceClassification.from_pretrained(bert_base_model_name, num_labels=tinybert_model.config.num_labels)
-
-# Function to merge models by averaging their weights
-def merge_models(merged_model, model1, model2, alpha=0.5):
-    """
-    Merge two models by averaging their weights.
-
-    Args:
-    merged_model (nn.Module): The model to save the merged weights.
-    model1 (nn.Module): The first model (e.g., TinyBERT fine-tuned).
-    model2 (nn.Module): The second model (e.g., BERT base pre-trained).
-    alpha (float): The weighting factor for merging, 0 <= alpha <= 1.
-                   If alpha=0.5, it means a simple average.
-    
-    Returns:
-    nn.Module: The merged model.
-    """
-    for param_name, param in merged_model.named_parameters():
-        if param_name in model1.state_dict() and param_name in model2.state_dict():
-            param.data = (alpha * model1.state_dict()[param_name].data +
-                          (1 - alpha) * model2.state_dict()[param_name].data)
-        else:
-            print(f"Parameter {param_name} not found in both models.")
-    
+# Function to merge models
+def merge_weights(tinybert, bert_base, alpha):
+    merged_model = BertForSequenceClassification.from_pretrained('bert-base-uncased')
+    with torch.no_grad():
+        for (name_bert_base, param_bert_base), (name_tinybert, param_tinybert) in zip(bert_base.named_parameters(), tinybert.named_parameters()):
+            if name_bert_base == name_tinybert:
+                merged_param = alpha * param_tinybert + (1 - alpha) * param_bert_base
+                merged_model.state_dict()[name_bert_base].copy_(merged_param)
     return merged_model
 
-# Merge the models
-alpha = 0.5  # Weighting factor for merging
-merged_model = merge_models(merged_model, tinybert_model, bert_base_model, alpha)
+# Merge models for all datasets and save
+def merge_models_for_datasets(datasets, alpha=0.5):
+    for dataset_name in datasets:
+        tinybert_dataset_path = os.path.join(tinybert_path, f"{dataset_name}_finetuned")
+        tinybert_model = TinyBertForSequenceClassification.from_pretrained(tinybert_dataset_path)
+        bert_base_model = BertForSequenceClassification.from_pretrained(bert_base_path)
+        
+        # Merge models with alpha
+        merged_model = merge_weights(tinybert_model, bert_base_model, alpha)
+        
+        # Save the merged model parameters
+        save_directory = os.path.join(save_merged_model_path, dataset_name)
+        os.makedirs(save_directory, exist_ok=True)
+        merged_model.save_pretrained(save_directory)
 
-# Save the merged model
-merged_model.save_pretrained(merged_model_path)
-print(f"Merged model saved to {merged_model_path}")
+        # Save the hyperparameters (including alpha)
+        hyperparameters = {
+            "alpha": alpha
+        }
+        with open(os.path.join(save_directory, "hyperparameters.json"), 'w') as f:
+            json.dump(hyperparameters, f)
 
-# Save the tokenizer (assuming the tokenizer for BERT base is used)
-tokenizer = AutoTokenizer.from_pretrained(bert_base_model_name)
-tokenizer.save_pretrained(merged_model_path)
-print(f"Tokenizer saved to {merged_model_path}")
+        print(f"Saved merged model and hyperparameters for {dataset_name} to {save_directory}")
 
-# Save the merging configuration and hyperparameters
-merging_info = {
-    "alpha": alpha,
-    "tinybert_finetuned_path": tinybert_finetuned_path,
-    "bert_base_model_name": bert_base_model_name,
-    "merged_model_path": merged_model_path
-}
-
-merging_info_path = os.path.join(merged_model_path, "merging_info.json")
-with open(merging_info_path, "w") as f:
-    json.dump(merging_info, f)
-
-print(f"Merging configuration and hyperparameters saved to {merging_info_path}")
-
+# Run the merging process
+if __name__ == "__main__":
+    merge_models_for_datasets(datasets_to_finetune)
