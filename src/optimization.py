@@ -1,17 +1,13 @@
 import torch
-from transformers import BertForSequenceClassification, BertTokenizer
+from transformers import BertTokenizer, BertForSequenceClassification
 from torch.optim import Adam
 from datasets import load_from_disk
 from torch.utils.data import DataLoader
+from sklearn.metrics import accuracy_score
+from scipy.stats import pearsonr, spearmanr
 import os
 import json
-from sklearn.metrics import accuracy_score
-
-# Define paths
-models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
-save_merged_model_path = os.path.join(models_path, "merged_model")
-data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "prepared")
-datasets_to_finetune = ['stsb', 'sst2', 'rte']
+from tqdm import tqdm
 
 # Load validation data using Hugging Face datasets
 def get_validation_dataloader(dataset_name):
@@ -48,25 +44,35 @@ def get_validation_dataloader(dataset_name):
     return dataloader
 
 # Function to evaluate the model on the validation set
-def evaluate_model(model, dataloader):
+def evaluate_model(model, dataloader, dataset_name):
     model.eval()
     predictions, true_labels = [], []
-    
+
     with torch.no_grad():
         for batch in dataloader:
             input_ids, attention_mask, labels = batch['input_ids'], batch['attention_mask'], batch['label']
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            
-            # Apply argmax to get the predicted class labels (discrete values)
-            preds = torch.argmax(outputs.logits, dim=-1)
-            
-            # Convert predictions and labels to lists for evaluation
-            predictions.extend(preds.cpu().tolist())  # Move to CPU and convert to list
-            true_labels.extend(labels.cpu().tolist())  # Move to CPU and convert to list
-    
-    # Now calculate accuracy using sklearn's accuracy_score
-    accuracy = accuracy_score(true_labels, predictions)
-    return accuracy
+
+            if dataset_name in ['sst2', 'rte']:  # Classification tasks
+                preds = torch.argmax(outputs.logits, dim=-1)
+                predictions.extend(preds.cpu().tolist())
+                true_labels.extend(labels.cpu().tolist())
+            elif dataset_name == 'stsb':  # Regression task (STS-B)
+                # Ensure predictions are a single scalar (continuous value)
+                preds = outputs.logits.squeeze(-1).cpu().tolist()  # Squeeze to make predictions 1D
+                predictions.extend(preds) #list 
+                true_labels.extend(labels.cpu().tolist()) #list
+
+    # Compute metrics based on the dataset
+    if dataset_name in ['sst2', 'rte']:  # For SST-2 and RTE, use accuracy
+        accuracy = accuracy_score(true_labels, predictions)
+        print("accurancy", type(accuracy), accuracy.shape)
+        return accuracy
+    elif dataset_name == 'stsb':  # For STS-B, use Spearman correlation only
+        #print("lables", len(true_labels), "pred", len(predictions)) #1500 both 
+        spearman_corr = spearmanr(true_labels, predictions)  # First element is Spearman correlation coefficient
+        print("spearman", type(spearman_corr))
+        return spearman_corr
 
 # Optimize alpha for the merged models
 def optimize_alpha(dataset_name, save_merged_model_path, learning_rate=0.01, epochs=10):
@@ -82,34 +88,68 @@ def optimize_alpha(dataset_name, save_merged_model_path, learning_rate=0.01, epo
     # Load validation dataloader
     dataloader = get_validation_dataloader(dataset_name)
     
+    best_metric = None
     best_alpha = None
-    best_accuracy = 0
     
-    for epoch in range(epochs):
+    print(f"\nStarting training for {dataset_name}...")
+
+    # Progress bar
+    for epoch in tqdm(range(epochs), desc=f"Training {dataset_name}"):
         alpha.data.clamp_(0, 1)  # Ensure alpha is within the range [0, 1]
         
-        accuracy = evaluate_model(merged_model, dataloader)
-        print(f"Dataset: {dataset_name}, Epoch {epoch + 1}, alpha = {alpha.item()}, accuracy = {accuracy}")
+        # Evaluate the model
+        metrics = evaluate_model(merged_model, dataloader, dataset_name)
         
-        if accuracy > best_accuracy:
-            best_accuracy = accuracy
-            best_alpha = alpha.item()
+        # Print detailed info for each epoch
+        if dataset_name in ['sst2', 'rte']:
+            print(f"Epoch {epoch + 1}/{epochs} - Alpha: {alpha.item():.4f}, Accuracy: {metrics:.4f}")
+        elif dataset_name == 'stsb':
+            # Only print Spearman correlation for STS-B
+            spearman_corr = metrics  # Now it's just spearman_corr
+            #print(f"Epoch {epoch + 1}/{epochs} - Alpha: {alpha.item():.4f}, Spearman: {(spearman_corr):.4f}")
+            # Extract only the Spearman correlation coefficient
+            print(f"Epoch {epoch + 1}/{epochs} - Alpha: {alpha.item()}, Spearman: {spearman_corr}")
+
+
         
-        # Loss is negative accuracy since we want to maximize accuracy
-        loss = -accuracy
+        # Save best model based on the metric
+        if dataset_name in ['sst2', 'rte']:  # Classification tasks, use accuracy
+            current_metric = metrics  # Accuracy
+            if best_metric is None or current_metric > best_metric:
+                best_metric = current_metric
+                best_alpha = alpha.item()
+                merged_model.save_pretrained(os.path.join(merged_model_path, "best_model"))
+        elif dataset_name == 'stsb':  # Regression task, use Spearman correlation
+            current_metric = metrics  # Now using Spearman correlation
+            if best_metric is None or current_metric > best_metric:
+                best_metric = current_metric
+                best_alpha = alpha.item()
+                merged_model.save_pretrained(os.path.join(merged_model_path, "best_model"))
+        
+        # Backpropagation step
+        loss = -current_metric
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-    # Save the best alpha
-    hyperparameters = {"best_alpha": best_alpha}
-    hyperparameters_path = os.path.join(merged_model_path, "hyperparameters.json")
-    with open(hyperparameters_path, 'w') as f:
+    # Save the final model and best alpha value
+    print(f"Best alpha for {dataset_name}: {best_alpha} with metric: {best_metric}")
+    
+    # Save best alpha and other hyperparameters
+    hyperparameters = {"best_alpha": best_alpha, "best_metric": best_metric}
+    with open(os.path.join(merged_model_path, "best_model", "hyperparameters.json"), 'w') as f:
         json.dump(hyperparameters, f)
 
-    print(f"Best alpha for {dataset_name}: {best_alpha} saved at {hyperparameters_path}")
+    print(f"Training for {dataset_name} completed. Best alpha: {best_alpha}")
+
+
 
 # Run the optimization process for each dataset
 if __name__ == "__main__":
+    datasets_to_finetune = ['stsb', 'sst2', 'rte']
+    save_merged_model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "merged_model")
+
     for dataset_name in datasets_to_finetune:
         optimize_alpha(dataset_name, save_merged_model_path)
+
+    print("\nAll trainings completed successfully!")
