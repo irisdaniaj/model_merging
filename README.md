@@ -21,7 +21,7 @@ cd model_merging
 ```
 and create the conda environment and install the requirements
 ```
-conda crete --name myenv python=3.11.9
+conda create --name myenv python=3.11.9
 conda activate myenv
 pip install requirements.txt
 ```
