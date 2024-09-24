@@ -53,7 +53,7 @@ python finetune_bert.py
 
 ## Hardware Requirements 
 
-For fine-tuning TinyBERT, I used an AMD Ryzen 7 7840HS processor with Radeon 780M integrated graphics, featuring 8 cores and 16 threads, along with 32 GB of RAM. Depending on your hardware setup, you may need to adjust the training parameters, such as batch size or learning rate. If your system has less computing power or memory, consider using a dedicated computing cluster or cloud-based resources to ensure efficient and effective fine-tuning.
+All experiments were conducted on a DGX A100 Architecture, which consists of 8 nodes, each with 256 CPU cores, 1 TB of memory, and 8 NVIDIA A100 GPUs, each providing 40 GB of GPU memory. If your system has less computing power or memory, consider using a dedicated computing cluster or cloud-based resources to ensure efficient and effective fine-tuning.
 
 
 
