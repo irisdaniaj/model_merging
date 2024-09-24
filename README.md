@@ -60,12 +60,10 @@ All experiments were conducted on a DGX A100 Architecture, which consists of 8 n
 
 ## TODO
 
-- [ ] fine tune bert base on the data and save it --> save hyperparamters and wieghts
+
 - [ ] merge the finetuned tinybert with pretrained unfinetuned bert base --> save hyperparameters and wieghts(how the hell do i merge them?)
 - [ ] run infernce on datasets using bert base
 - [ ] run inference on datasets using merge model
 - [ ] comprare the two models (comparison in terms of metrics and flops (are flops the most suitable choice here?))
 - [ ] remember to create the environment .txt
-- [ ] In the report justify why I choose BERT Base and TinyBERT. also table with number of paramters of the BERT models that i can find.
-- [ ] justify why I choose those datasets. 
 
