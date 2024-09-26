@@ -1,15 +1,19 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import os
-from datasets import load_dataset
+from datasets import load_from_disk
 from tqdm import tqdm
 import json
 from torchprofile import profile_macs  # To calculate MACs, from which we can derive FLOPs (2 * MACs)
 
 # Paths to the saved merged models
 models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "merged_model")
-snli_model_checkpoint = os.path.join(models_path, "rte", "best_model", "checkpoints")  # Adjust this if necessary
-imdb_model_checkpoint = os.path.join(models_path, "sst2", "best_model", "checkpoints")  # Adjust this if necessary
+rte_model_checkpoint = os.path.join(models_path, "rte", "best_model", "checkpoints")  # Adjust this if necessary
+sst2_model_checkpoint = os.path.join(models_path, "sst2", "best_model", "checkpoints")  # Adjust this if necessary
+
+# Define data paths based on the folder structure
+sst2_data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "prepared", "sst2")
+rte_data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "prepared", "rte")
 
 # Function to load model and tokenizer
 def load_model_and_tokenizer(checkpoint_path):
@@ -39,19 +43,15 @@ def run_inference(dataset, model, tokenizer, task='classification'):
     # Run inference
     for example in tqdm(dataset):
         if task == 'classification':
-            input_text = example['text'] if 'text' in example else example['sentence']  # For IMDb, 'text' key is used
+            input_text = example['sentence']
             inputs = tokenizer(input_text, return_tensors="pt", padding="max_length", truncation=True, max_length=128)
             true_label = example['label']
 
-        elif task == 'nli':  # Natural Language Inference (for SNLI)
-            premise = example["premise"]
-            hypothesis = example["hypothesis"]
-            inputs = tokenizer(premise, hypothesis, return_tensors="pt", padding="max_length", truncation=True, max_length=128)
+        elif task == 'nli':  # Natural Language Inference (for RTE)
+            sentence1 = example["sentence1"]
+            sentence2 = example["sentence2"]
+            inputs = tokenizer(sentence1, sentence2, return_tensors="pt", padding="max_length", truncation=True, max_length=128)
             true_label = example['label']
-
-            # Ignore examples with label '-1' in SNLI (invalid label)
-            if true_label == -1:
-                continue
 
         # Make prediction
         with torch.no_grad():
@@ -72,24 +72,24 @@ def run_inference(dataset, model, tokenizer, task='classification'):
     accuracy = correct_predictions / total_predictions * 100
     return accuracy, total_flops
 
-# Function to run inference on the SNLI dataset
-def run_inference_snli():
-    print("Running inference on SNLI using the merged model (RTE-finetuned)")
+# Function to run inference on the RTE dataset
+def run_inference_rte():
+    print("Running inference on RTE using the merged model")
 
-    # Load the SNLI dataset
-    snli_dataset = load_dataset("snli", split="test").shuffle(seed=42).select(range(5000))  # Subsample of 10,000 for efficiency
+    # Load the RTE dataset from the prepared folder
+    rte_dataset = load_from_disk(rte_data_path)['test']
 
-    # Load the merged RTE model for NLI task
-    model, tokenizer = load_model_and_tokenizer(snli_model_checkpoint)
+    # Load the merged model for RTE task
+    model, tokenizer = load_model_and_tokenizer(rte_model_checkpoint)
 
-    # Run inference on the SNLI dataset
-    accuracy, total_flops = run_inference(snli_dataset, model, tokenizer, task='nli')
+    # Run inference on the RTE dataset
+    accuracy, total_flops = run_inference(rte_dataset, model, tokenizer, task='nli')
 
-    print(f"Accuracy on SNLI test set: {accuracy:.2f}%")
-    print(f"Total FLOPs for SNLI test set: {total_flops:.2e} FLOPs")
+    print(f"Accuracy on RTE test set: {accuracy:.2f}%")
+    print(f"Total FLOPs for RTE test set: {total_flops:.2e} FLOPs")
 
     # Save results
-    results_filename = "snli_inference_merged_results.json"
+    results_filename = "rte_inference_merged_results.json"
     results_save_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", results_filename)
 
     # Save results to the correct path
@@ -104,26 +104,26 @@ def run_inference_snli():
     with open(results_save_path, "w") as f:
         json.dump(results, f)
 
-    print(f"SNLI Results saved to {results_save_path}")
+    print(f"RTE Results saved to {results_save_path}")
 
-# Function to run inference on the IMDb dataset
-def run_inference_imdb():
-    print("Running inference on IMDb using the merged model (SST-2-finetuned)")
+# Function to run inference on the SST-2 dataset
+def run_inference_sst2():
+    print("Running inference on SST-2 using the merged model")
 
-    # Load the IMDb dataset
-    imdb_dataset = load_dataset("imdb", split="test").shuffle(seed=42).select(range(5000))  # Subsample of 10,000 for efficiency
+    # Load the SST-2 dataset from the prepared folder
+    sst2_dataset = load_from_disk(sst2_data_path)['test']
 
-    # Load the merged SST-2 model for sentiment analysis
-    model, tokenizer = load_model_and_tokenizer(imdb_model_checkpoint)
+    # Load the merged model for sentiment analysis task (SST-2)
+    model, tokenizer = load_model_and_tokenizer(sst2_model_checkpoint)
 
-    # Run inference on the IMDb dataset
-    accuracy, total_flops = run_inference(imdb_dataset, model, tokenizer, task='classification')
+    # Run inference on the SST-2 dataset
+    accuracy, total_flops = run_inference(sst2_dataset, model, tokenizer, task='classification')
 
-    print(f"Accuracy on IMDb test set: {accuracy:.2f}%")
-    print(f"Total FLOPs for IMDb test set: {total_flops:.2e} FLOPs")
+    print(f"Accuracy on SST-2 test set: {accuracy:.2f}%")
+    print(f"Total FLOPs for SST-2 test set: {total_flops:.2e} FLOPs")
 
     # Save results
-    results_filename = "imdb_inference_merged_results.json"
+    results_filename = "sst2_inference_merged_results.json"
     results_save_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", results_filename)
 
     # Save results to the correct path
@@ -138,11 +138,11 @@ def run_inference_imdb():
     with open(results_save_path, "w") as f:
         json.dump(results, f)
 
-    print(f"IMDb Results saved to {results_save_path}")
+    print(f"SST-2 Results saved to {results_save_path}")
 
 if __name__ == "__main__":
-    # Run inference on SNLI
-    run_inference_snli()
+    # Run inference on RTE
+    run_inference_rte()
 
-    # Run inference on IMDb
-    run_inference_imdb()
+    # Run inference on SST-2
+    run_inference_sst2()
