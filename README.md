@@ -21,7 +21,7 @@ cd model_merging
 ```
 and create the conda environment and install the requirements
 ```
-conda crete --name myenv python=3.11.9
+conda create --name myenv python=3.11.9
 conda activate myenv
 pip install requirements.txt
 ```
@@ -53,19 +53,17 @@ python finetune_bert.py
 
 ## Hardware Requirements 
 
-For fine-tuning TinyBERT, I used an AMD Ryzen 7 7840HS processor with Radeon 780M integrated graphics, featuring 8 cores and 16 threads, along with 32 GB of RAM. Depending on your hardware setup, you may need to adjust the training parameters, such as batch size or learning rate. If your system has less computing power or memory, consider using a dedicated computing cluster or cloud-based resources to ensure efficient and effective fine-tuning.
+All experiments were conducted on a DGX A100 Architecture, which consists of 8 nodes, each with 256 CPU cores, 1 TB of memory, and 8 NVIDIA A100 GPUs, each providing 40 GB of GPU memory. If your system has less computing power or memory, consider using a dedicated computing cluster or cloud-based resources to ensure efficient and effective fine-tuning.
 
 
 
 
 ## TODO
 
-- [ ] fine tune bert base on the data and save it --> save hyperparamters and wieghts
+
 - [ ] merge the finetuned tinybert with pretrained unfinetuned bert base --> save hyperparameters and wieghts(how the hell do i merge them?)
 - [ ] run infernce on datasets using bert base
 - [ ] run inference on datasets using merge model
 - [ ] comprare the two models (comparison in terms of metrics and flops (are flops the most suitable choice here?))
 - [ ] remember to create the environment .txt
-- [ ] In the report justify why I choose BERT Base and TinyBERT. also table with number of paramters of the BERT models that i can find.
-- [ ] justify why I choose those datasets. 
 
