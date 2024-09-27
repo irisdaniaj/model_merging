@@ -2,7 +2,7 @@ from datasets import load_dataset
 import os
 
 # Define GLUE datasets to download
-datasets_to_download = ['stsb', 'sst2', 'rte']
+datasets_to_download = [ 'sst2', 'rte']
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.abspath(__file__))

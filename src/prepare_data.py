@@ -15,14 +15,7 @@ def prepare_dataset(dataset_name):
     # Load dataset from disk
     dataset = load_from_disk(os.path.join(data_path, dataset_name))
 
-    # Ensure labels are in the correct format
-    if dataset_name == 'stsb':
-        # Convert similarity scores to floats (for regression task)
-        dataset = dataset.map(lambda example: {'label': float(example['label'])})
-    
-    elif dataset_name == 'sst2' or dataset_name == 'rte':
-        # Convert labels to integers (for classification tasks)
-        dataset = dataset.map(lambda example: {'label': int(example['label'])})
+    dataset = dataset.map(lambda example: {'label': int(example['label'])})
 
     # Save the prepared datasets back to disk
     prepared_dataset_path = os.path.join(prepared_data_path, dataset_name)
@@ -31,7 +24,7 @@ def prepare_dataset(dataset_name):
     print(f"Prepared {dataset_name.upper()} dataset saved to {prepared_dataset_path}.")
 
 # List of datasets to prepare
-datasets_to_prepare = ['stsb', 'sst2', 'rte']
+datasets_to_prepare = [ 'sst2', 'rte']
 
 # Prepare each dataset
 for dataset_name in datasets_to_prepare:

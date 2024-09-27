@@ -1,17 +1,114 @@
 import torch
-from transformers import BertTokenizer, BertForSequenceClassification
-from torch.optim import Adam
-from datasets import load_from_disk
-from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score, f1_score, mean_squared_error
-import scipy.stats
+from transformers import AutoModelForSequenceClassification, BertTokenizer, BertForSequenceClassification, AutoTokenizer, AutoConfig, logging as transformers_logging
 import os
-import torch.nn as nn 
-import numpy as np
+from torch.utils.data import DataLoader
+from sklearn.metrics import accuracy_score, f1_score
 import json
-from tqdm import tqdm
+import random
+from datasets import load_from_disk
+from safetensors.torch import load_file 
+import warnings
 
-# Load validation data using Hugging Face datasets
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+# Set transformers logging to show only errors
+transformers_logging.set_verbosity_error()
+# Paths to the saved merged models
+
+# Define paths
+models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+tinybert_path = os.path.join(models_path, "tinybert")
+bert_base_path = os.path.join(models_path, "bert-base")
+save_merged_model_path = os.path.join(models_path, "merged_model")
+
+# Ensure directories exist
+os.makedirs(save_merged_model_path, exist_ok=True)
+
+# Use only SST-2 and RTE
+datasets_to_finetune = ['sst2', 'rte']
+
+# Load model (supporting both safetensors and pytorch_model.bin)
+def load_model_from_checkpoint(checkpoint_dir):
+    safetensors_file = os.path.join(checkpoint_dir, "model.safetensors")
+    #config_file = os.path.join(checkpoint_dir, "config.json")
+
+    # Load model configuration (using AutoConfig to convert the config file into a proper config object)
+    config = AutoConfig.from_pretrained(checkpoint_dir)
+
+    model = AutoModelForSequenceClassification.from_config(config)
+    state_dict = load_file(safetensors_file)
+    model.load_state_dict(state_dict)
+
+    return model
+
+# Find the latest checkpoint (highest numbered) in a directory
+def get_latest_checkpoint_path(checkpoint_dir):
+    # List all subdirectories in the checkpoint directory
+    subdirs = [d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d))]
+    
+    # Filter directories that start with 'checkpoint-'
+    checkpoint_dirs = [d for d in subdirs if d.startswith('checkpoint-')]
+    
+    if not checkpoint_dirs:
+        raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
+    
+    # Sort by the numeric part of the checkpoint (e.g., 'checkpoint-156', 'checkpoint-312')
+    checkpoint_dirs.sort(key=lambda x: int(x.split('-')[-1]))
+    
+    # Return the last checkpoint (with the highest number)
+    return os.path.join(checkpoint_dir, checkpoint_dirs[-1])
+
+
+def merge_weights(tinybert, bert_base, alpha):
+    merged_model = BertForSequenceClassification.from_pretrained(bert_base_path)  # Use the BERT base configuration
+    with torch.no_grad():
+        for (name_bert_base, param_bert_base), (name_tinybert, param_tinybert) in zip(bert_base.named_parameters(), tinybert.named_parameters()):
+            if name_bert_base == name_tinybert:
+                # Merge weights with alpha interpolation
+                merged_param = alpha * param_tinybert + (1 - alpha) * param_bert_base
+                merged_model.state_dict()[name_bert_base].copy_(merged_param)
+    return merged_model
+
+# Merge models for all datasets and save
+def merge_models_for_datasets(datasets, alpha=0.5):
+    for dataset_name in datasets:
+        tinybert_dataset_path = os.path.join(tinybert_path, f"{dataset_name}_finetuned")
+        
+        # Find the last checkpoint
+        latest_checkpoint_path = get_latest_checkpoint_path(tinybert_dataset_path)
+        
+        # Load TinyBERT finetuned model from the latest checkpoint (either from safetensors or pytorch_model.bin)
+        tinybert_model = load_model_from_checkpoint(latest_checkpoint_path)
+        tokenizer = AutoTokenizer.from_pretrained(latest_checkpoint_path)  # Load the tokenizer corresponding to TinyBERT finetuned model
+        
+        # Load pretrained BERT base model
+        bert_base_model = BertForSequenceClassification.from_pretrained(bert_base_path)
+        
+        # Merge models with alpha
+        merged_model = merge_weights(tinybert_model, bert_base_model, alpha)
+        
+        # Save the merged model parameters
+        save_directory = os.path.join(save_merged_model_path, dataset_name)
+        os.makedirs(save_directory, exist_ok=True)
+        
+        # Save the merged model (weights and config)
+        merged_model.save_pretrained(save_directory)
+        
+        # Save the tokenizer (TinyBERT's tokenizer)
+        tokenizer.save_pretrained(save_directory)
+
+        # Save the hyperparameters (including alpha)
+        hyperparameters = {
+            "alpha": alpha,
+            "dataset": dataset_name
+        }
+        with open(os.path.join(save_directory, "hyperparameters.json"), 'w') as f:
+            json.dump(hyperparameters, f)
+
+        print(f"Saved merged model, tokenizer, and hyperparameters for {dataset_name} to {save_directory}")
+
+# Function to get validation dataloader
 def get_validation_dataloader(dataset_name):
     data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "prepared")
     validation_data_path = os.path.join(data_path, dataset_name, "validation")
@@ -19,14 +116,11 @@ def get_validation_dataloader(dataset_name):
     # Load the validation dataset from disk
     dataset = load_from_disk(validation_data_path)
     
-    # Load tokenizer (this should match the tokenizer used for TinyBERT)
+    # Load tokenizer (this also match the tokenizer used for TinyBERT)
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     
     # Tokenize the dataset based on its column structure
-    if dataset_name == 'stsb':  # STSB has sentence1, sentence2
-        def tokenize_function(example):
-            return tokenizer(example['sentence1'], example['sentence2'], padding='max_length', truncation=True, max_length=128)
-    elif dataset_name == 'sst2':  # SST-2 has a single sentence
+    if dataset_name == 'sst2':  # SST-2 has a single sentence
         def tokenize_function(example):
             return tokenizer(example['sentence'], padding='max_length', truncation=True, max_length=128)
     elif dataset_name == 'rte':  # RTE has sentence1, sentence2
@@ -37,168 +131,129 @@ def get_validation_dataloader(dataset_name):
 
     tokenized_dataset = dataset.map(tokenize_function, batched=True)
     
+    # Ensure labels are present in the dataset
+    if 'label' in dataset.column_names:  # Check for 'label' column in the dataset
+        tokenized_dataset = tokenized_dataset.rename_column('label', 'labels')  # Rename to match PyTorch expectations
+    
     # Set the format to PyTorch for direct use with DataLoader
-    tokenized_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
+    tokenized_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
     
     # Create a DataLoader
     dataloader = DataLoader(tokenized_dataset, batch_size=16, shuffle=False)
     
     return dataloader
 
-# Define function to compute metrics
-def compute_metrics(eval_pred, dataset_name):
-    predictions, labels = eval_pred
-    if dataset_name == 'stsb':  # Regression task
-        predictions = predictions[:, 0]  # Regression output is a single float per example
-        pearson_corr = scipy.stats.pearsonr(predictions, labels)[0]
-        mse = mean_squared_error(labels, predictions)
-        return {"pearson": pearson_corr, "mse": mse}
-    else:  # Classification tasks
-        preds = predictions.argmax(-1)
-        acc = accuracy_score(labels, preds)
-        f1 = f1_score(labels, preds, average='weighted')
-        return {"accuracy": acc, "f1": f1}
-
-# Function to evaluate the model on the validation set
-def evaluate_model(model, dataloader, dataset_name):
+# Function to evaluate model performance
+def evaluate_model(model, dataloader, task='classification'):
     model.eval()
-    predictions, true_labels = [], []
-
+    all_labels = []
+    all_preds = []
+    
     with torch.no_grad():
         for batch in dataloader:
-            input_ids, attention_mask, labels = batch['input_ids'], batch['attention_mask'], batch['label']
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            inputs, labels = batch['input_ids'], batch['labels']
+            outputs = model(inputs).logits
 
-            if dataset_name == 'stsb':  # Handle regression task
-                # STSB outputs a single regression value per example
-                batch_predictions = outputs.logits.squeeze().cpu().numpy()  # Flatten the logits to (batch_size,)
-                predictions.extend(batch_predictions)  # Extend the predictions list with this batch
-            else:
-                # Classification tasks (SST-2, RTE)
-                batch_predictions = outputs.logits.cpu().numpy()  # Shape: (batch_size, num_labels)
-                predictions.extend(batch_predictions)  # Extend the predictions list with this batch
-            
-            true_labels.extend(labels.cpu().numpy())  # Collect the true labels from the batch
-
-    # Convert predictions and true_labels to arrays for metric computation
-    if dataset_name == 'stsb':
-        predictions = np.array(predictions)  # Shape: (num_examples,) for regression
-    else:
-        predictions = np.array(predictions)  # Shape: (num_examples, num_labels) for classification
-
-    true_labels = np.array(true_labels)  # Shape: (num_examples,)
-
-    return compute_metrics((predictions, true_labels), dataset_name)
-
-
-# Optimize alpha for the merged models
-def optimize_alpha(dataset_name, save_merged_model_path, learning_rate=0.01, epochs=10):
-    # Load the pre-merged model
-    merged_model_path = os.path.join(save_merged_model_path, dataset_name)
-    merged_model = BertForSequenceClassification.from_pretrained(merged_model_path)
-    tokenizer = BertTokenizer.from_pretrained(merged_model_path)
+            if task == 'classification':
+                predictions = torch.argmax(outputs, dim=1)
+                all_preds.extend(predictions.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
     
-    # Initialize alpha as a learnable parameter
-    alpha = torch.tensor(0.5, requires_grad=True)
-    optimizer = Adam([alpha], lr=learning_rate)
-    
-    # Load validation dataloader
-    dataloader = get_validation_dataloader(dataset_name)
+    accuracy = accuracy_score(all_labels, all_preds)
+    f1 = f1_score(all_labels, all_preds, average='weighted')
+    return accuracy, f1
 
-    # Define loss function based on the dataset type
-    if dataset_name == 'stsb':
-        loss_fn = nn.MSELoss()  # Use MSE for regression task (STSB)
-    else:
-        loss_fn = nn.CrossEntropyLoss()  # Use Cross-Entropy for classification tasks (SST-2, RTE)
-    
-    best_metric = None
+# Random search for alpha optimization and saving models
+def random_search_alpha(dataloader, dataset_name, checkpoint_dir, num_trials):
     best_alpha = None
-    
-    print(f"\nStarting training for {dataset_name}...")
+    best_score = 0  # For classification, higher score (accuracy or f1) is better
+    best_model = None
 
-    # Progress bar
-    for epoch in tqdm(range(epochs), desc=f"Training {dataset_name}"):
-        alpha.data.clamp_(0, 1)  # Ensure alpha is within the range [0, 1]
+    # Initialize models for classification (e.g., 2 labels for binary classification)
+    bert_base_model = BertForSequenceClassification.from_pretrained(bert_base_path, num_labels=2)
+    tinybert_model = load_model_from_checkpoint(checkpoint_dir)
+
+    for trial in range(num_trials):
+        alpha = random.uniform(0, 1)  # Randomly sample alpha from [0, 1]
+        print(f"Trial {trial + 1}/{num_trials}, Testing Alpha: {alpha:.4f}")
         
-        # Evaluate the model
-        metrics = evaluate_model(merged_model, dataloader, dataset_name)
+        # Merge models using the sampled alpha
+        merged_model = merge_weights(tinybert_model, bert_base_model, alpha)
         
-        # Print detailed info for each epoch
-        if dataset_name in ['sst2', 'rte']:
-            print(f"Epoch {epoch + 1}/{epochs} - Alpha: {alpha.item():.4f}, Accuracy: {metrics['accuracy']:.4f}, F1: {metrics['f1']:.4f}")
-        elif dataset_name == 'stsb':
-            print(f"Epoch {epoch + 1}/{epochs} - Alpha: {alpha.item():.4f}, Pearson: {metrics['pearson']:.4f}, MSE: {metrics['mse']:.4f}")
+        # Evaluate the merged model
+        accuracy, f1 = evaluate_model(merged_model, dataloader, task='classification')
+        score = accuracy  # Use accuracy to track the best alpha
+        
+        # Save the merged model, hyperparameters, and alpha values after each trial
+        trial_save_dir = os.path.join(save_merged_model_path, dataset_name, f"trial_{trial + 1}")
+        os.makedirs(trial_save_dir, exist_ok=True)
+        
+        # Save model weights
+        merged_model.save_pretrained(trial_save_dir)
+        
+        # Save tokenizer (to ensure compatibility if needed later)
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        tokenizer.save_pretrained(trial_save_dir)
+        
+        # Save hyperparameters and alpha value used
+        hyperparameters = {
+            "alpha": alpha,
+            "score": score
+        }
+        with open(os.path.join(trial_save_dir, "hyperparameters.json"), 'w') as f:
+            json.dump(hyperparameters, f)
+        
+        # Update the best alpha if the current one performs better
+        if score > best_score:
+            best_score = score
+            best_alpha = alpha
+            best_model = merged_model
 
-        # Calculate loss for backpropagation
-        true_labels = []
-        predictions = []
+    return best_alpha, best_score, best_model
 
-        # Collect all predictions and labels for loss calculation
-        merged_model.eval()
-        with torch.no_grad():
-            for batch in dataloader:
-                input_ids, attention_mask, labels = batch['input_ids'], batch['attention_mask'], batch['label']
-                outputs = merged_model(input_ids=input_ids, attention_mask=attention_mask)
+# Optimize alpha for each dataset and save models
+def optimize_alpha_for_datasets(datasets, num_trials):
+    for dataset_name in datasets:
+        print(f"Optimizing alpha for {dataset_name}...")
 
-                if dataset_name == 'stsb':
-                    # For regression, outputs.logits should be a single float per example
-                    batch_predictions = outputs.logits[:, 0].squeeze()
-                else:
-                    # For classification, use Cross-Entropy Loss
-                    batch_predictions = outputs.logits
+        # Load the validation DataLoader for the current dataset
+        dataloader = get_validation_dataloader(dataset_name)
+        tinybert_dataset_path = os.path.join(tinybert_path, f"{dataset_name}_finetuned")
+        
+        # Find the last checkpoint for this dataset
+        checkpoint_dir = get_latest_checkpoint_path(tinybert_dataset_path)
+        # Perform random search for the optimal alpha
+        best_alpha, best_score, best_model = random_search_alpha(dataloader, dataset_name, checkpoint_dir, num_trials=num_trials)
+        
+        # Log and save the best alpha and score
+        print(f"Best Alpha for {dataset_name}: {best_alpha}, Best Score: {best_score}")
+        
+        # Save the best alpha for future reference
+        best_save_dir = os.path.join(save_merged_model_path, dataset_name, "best_model")
+        os.makedirs(best_save_dir, exist_ok=True)
+        with open(os.path.join(best_save_dir, "best_alpha.json"), 'w') as f:
+            json.dump({"best_alpha": best_alpha, "best_score": best_score}, f)
 
-                predictions.append(batch_predictions)
-                true_labels.append(labels)
+        
+        # Save the merged model in the same directory as best_alpha.json (inside checkpoints)
+        save_directory = os.path.join(save_merged_model_path, dataset_name, "best_model", "checkpoints")
+        os.makedirs(save_directory, exist_ok=True)
+        best_model.save_pretrained(save_directory)  # Save the merged model
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir) 
+        # Save the tokenizer
+        tokenizer.save_pretrained(save_directory)
 
-        predictions = torch.cat(predictions)
-        true_labels = torch.cat(true_labels)
+        # Save the hyperparameters (including alpha)
+        hyperparameters = {
+            "alpha": best_alpha
+        }
+        with open(os.path.join(save_directory, "hyperparameters.json"), 'w') as f:
+            json.dump(hyperparameters, f)
 
-        # Compute loss
-        loss = loss_fn(predictions, true_labels)
-
-        merged_model.train()
-
-        # Backpropagation step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        # Save best model based on the metric
-        current_metric = metrics['accuracy'] if dataset_name in ['sst2', 'rte'] else metrics['pearson']
-        if best_metric is None or current_metric > best_metric:
-            best_metric = current_metric
-            best_alpha = alpha.item()
-
-            # Ensure the directory for saving exists
-            os.makedirs(os.path.join(merged_model_path, "best_model"), exist_ok=True)
-            
-            # Save the model parameters
-            merged_model.save_pretrained(os.path.join(merged_model_path, "best_model"))
-            
-            # Save the tokenizer
-            tokenizer.save_pretrained(os.path.join(merged_model_path, "best_model"))
-
-        # Backpropagation step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-    # Save the final model and best alpha value
-    print(f"Best alpha for {dataset_name}: {best_alpha} with metric: {best_metric}")
+        print(f"Saved merged model and tokenizer for {dataset_name} to {save_directory}")
     
-    # Save best alpha and other hyperparameters
-    hyperparameters = {"best_alpha": best_alpha, "best_metric": best_metric}
-    with open(os.path.join(merged_model_path, "best_model", "hyperparameters.json"), 'w') as f:
-        json.dump(hyperparameters, f)
+    print(f"Optimization complete for all datasets.")
 
-    print(f"Training for {dataset_name} completed. Best alpha: {best_alpha}")
-
-# Run the optimization process for each dataset
 if __name__ == "__main__":
-    datasets_to_finetune = ['stsb', 'sst2', 'rte']
-    save_merged_model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "merged_model")
-
-    for dataset_name in datasets_to_finetune:
-        optimize_alpha(dataset_name, save_merged_model_path)
-
-    print("\nAll trainings completed successfully!")
+    # Run the optimization for each dataset with 20 trials per dataset
+    optimize_alpha_for_datasets(datasets_to_finetune, num_trials=20)

@@ -1,11 +1,17 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, logging as transformers_logging
 import os
 from datasets import load_from_disk
 from tqdm import tqdm
 import json
 from torchprofile import profile_macs  # To calculate MACs, from which we can derive FLOPs (2 * MACs)
+import warnings
 
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+# Set transformers logging to show only errors
+transformers_logging.set_verbosity_error()
 # Paths to the saved merged models
 models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "merged_model")
 rte_model_checkpoint = os.path.join(models_path, "rte", "best_model", "checkpoints")  # Adjust this if necessary

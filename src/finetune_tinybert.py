@@ -15,7 +15,7 @@ models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 os.makedirs(models_path, exist_ok=True)
 
 # Define datasets to fine-tune on
-datasets_to_finetune = ['stsb', 'sst2', 'rte']
+datasets_to_finetune = [ 'sst2', 'rte']
 
 # Load tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -23,23 +23,14 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 # Define function to compute metrics
 def compute_metrics(eval_pred, dataset_name):
     predictions, labels = eval_pred
-    if dataset_name == 'stsb':  # Regression task
-        predictions = predictions[:, 0]  # Regression output is a single float per example
-        pearson_corr = scipy.stats.pearsonr(predictions, labels)[0]
-        mse = mean_squared_error(labels, predictions)
-        return {"pearson": pearson_corr, "mse": mse}
-    else:  # Classification tasks
-        preds = predictions.argmax(-1)
-        acc = accuracy_score(labels, preds)
-        f1 = f1_score(labels, preds, average='weighted')
-        return {"accuracy": acc, "f1": f1}
+    preds = predictions.argmax(-1)
+    acc = accuracy_score(labels, preds)
+    f1 = f1_score(labels, preds, average='weighted')
+    return {"accuracy": acc, "f1": f1}
 
 # Tokenization function
 def tokenize_function(example, dataset_name):
-    if dataset_name == 'stsb':
-        # Tokenization for sentence pair tasks (STS-B)
-        return tokenizer(example['sentence1'], example['sentence2'], padding="max_length", truncation=True)
-    elif dataset_name == 'rte':
+    if dataset_name == 'rte':
         # Tokenization for sentence pair tasks (RTE)
         return tokenizer(example['sentence1'], example['sentence2'], padding="max_length", truncation=True)
     else:
@@ -54,7 +45,7 @@ for dataset_name in datasets_to_finetune:
     dataset = load_from_disk(os.path.join(prepared_data_path, dataset_name))
 
     # Determine the number of labels
-    num_labels = 1 if dataset_name == 'stsb' else 2  # 1 for regression (STS-B), 2 for classification (SST-2, RTE)
+    num_labels = 2  # 1 for regression (STS-B), 2 for classification (SST-2, RTE)
 
     # Load TinyBERT model from pre-trained weights
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
@@ -63,10 +54,8 @@ for dataset_name in datasets_to_finetune:
     tokenized_datasets = dataset.map(lambda x: tokenize_function(x, dataset_name), batched=True)
 
     # Determine the metric for best model based on the dataset
-    if dataset_name == 'stsb':
-        metric_for_best_model = "eval_pearson"  # Regression task
-    else:
-        metric_for_best_model = "eval_loss"  # Classification tasks
+
+    metric_for_best_model = "eval_loss"  # Classification tasks
 
     # Define training arguments for fine-tuning
     training_args = TrainingArguments(
