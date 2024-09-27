@@ -1,11 +1,17 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, logging as transformers_logging
 import os
 from datasets import load_dataset
 from tqdm import tqdm
 import json
 from torchprofile import profile_macs  # To calculate MACs, from which we can derive FLOPs (2 * MACs)
+import warnings
 
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+# Set transformers logging to show only errors
+transformers_logging.set_verbosity_error()
 # Paths to the saved merged models
 models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "merged_model")
 snli_model_checkpoint = os.path.join(models_path, "rte", "best_model", "checkpoints")  # Adjust this if necessary
@@ -89,7 +95,7 @@ def run_inference_snli():
     print(f"Total FLOPs for SNLI test set: {total_flops:.2e} FLOPs")
 
     # Save results
-    results_filename = "snli_inference_merged_results.json"
+    results_filename = "snli_merged_results.json"
     results_save_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", results_filename)
 
     # Save results to the correct path
@@ -123,7 +129,7 @@ def run_inference_imdb():
     print(f"Total FLOPs for IMDb test set: {total_flops:.2e} FLOPs")
 
     # Save results
-    results_filename = "imdb_inference_merged_results.json"
+    results_filename = "imdb_merged_results.json"
     results_save_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", results_filename)
 
     # Save results to the correct path

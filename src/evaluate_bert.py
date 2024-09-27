@@ -78,7 +78,7 @@ def run_inference_imdb(subsample_size):
     print(f"Total FLOPs for inference on IMDb test set: {total_flops:.2e} FLOPs")
 
     # Save results to a JSON file
-    results_filename = "imdb_inference_results.json"
+    results_filename = "imdb_bert_results.json"
     results_save_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", results_filename)
 
     # Save results to the correct path
@@ -150,7 +150,7 @@ def run_inference_snli(subsample_size):
     print(f"Total FLOPs for inference on SNLI test set: {total_flops:.2e} FLOPs")
 
     # Save results to a JSON file
-    results_filename = "snli_inference_results.json"
+    results_filename = "snli_bert_results.json"
     results_save_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", results_filename)
 
     # Save results to the correct path
