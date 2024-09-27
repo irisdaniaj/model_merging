@@ -7,7 +7,7 @@ Recent advancements have introduced smaller, more efficient models like [TinyBER
 
 This project seeks to explore this possibility by evaluating whether merging a fine-tuned small model with a large pre-trained model can improve performance on specific NLP tasks, compared to the traditional approach of fine-tuning the large model alone. By leveraging the [GLUE benchmark](https://gluebenchmark.com/), which is widely recognized for benchmarking various NLP tasks, this study aims to provide insights into the potential benefits and trade-offs of model merging in practical applications.
 
-The primary focus will be on determining whether a hybrid approach can offer a superior balance of accuracy and resource utilization compared to the more classical approach. To do this we will use BERT Base as the large model and TinyBERT as the lightweight model and we will compare their performance on three different GLUE datasets: [STS-B](https://paperswithcode.com/dataset/sts-benchmark), [SST-2](https://huggingface.co/datasets/gimmaru/glue-sst2), [RTE](https://paperswithcode.com/dataset/rte) in terms of accurancy and FLOPs. 
+The primary focus will be on determining whether a hybrid approach can offer a superior balance of accuracy and resource utilization compared to the more classical approach. To do this we will use BERT Base as the large model and TinyBERT as the lightweight model and we will compare their performance on two different datasets: [Internet Movie Database(IMDb)](https://www.kaggle.com/datasets/lakshmi25npathi/imdb-dataset-of-50k-movie-reviews) and [Stanford Natural Language Inference(SNLI)](https://nlp.stanford.edu/projects/snli/) in terms of accurancy and FLOPs. 
 
 ## Usage
 
@@ -41,15 +41,32 @@ Now, run model_download.py to download the models(BERT Base uncased and TinyBERT
 ```
 python model_download.py
 ```
-We will now fine-tune TinyBERT on each dataset and save the corresponding hyperparameters and model metrics in `training_args.json` and `metrics.json` files, respectively, for each dataset. This process will create three new subfolders within the `models/tinybert` directory, each named after a specific dataset (stsb, sst2, rte). Each subfolder will contain the fine-tuned model, the tokenizer, and the associated configuration files, allowing for easy access and reproducibility.
+We will now fine-tune TinyBERT on each dataset and save the corresponding hyperparameters and model metrics in `training_args.json` and `metrics.json` files, respectively, for each dataset. This process will create three new subfolders within the `models/tinybert` directory, each named after a specific dataset (sst2, rte). Each subfolder will contain the fine-tuned model, the tokenizer, and the associated configuration files, allowing for easy access and reproducibility.
 ```
 python finetune_tinybert.py
 ```
-Now the same will be done for BERT Base.(disclaimer run in on cluster) 
+Now the same will be done for BERT Base.
 
 ```
 python finetune_bert.py
 ```
+Now that we have the models we can merge them. A weigthed based merging technique will be used where the weights of the two models were combined by optimizing merging coefficients using random search. For more detail about the optimization method please refer to section of `report.pdf`. To merge the models run 
+```
+python optimization.py
+```
+This will create a new folder `models/merged_model` and under `models/merged_model/{dataset_name}/best_model` the best merged model will be saved. 
+
+Next we want to compare the performance of the finetuned BERT Base model on the [Internet Movie Database(IMDb)](https://www.kaggle.com/datasets/lakshmi25npathi/imdb-dataset-of-50k-movie-reviews) and [Stanford Natural Language Inference(SNLI)](https://nlp.stanford.edu/projects/snli/) datasets. To do this run 
+```
+python evaluate_bert.py
+```
+and 
+```
+python evaluate_merging.py
+```
+the results will be saved in the `results` folder. 
+
+## Results
 
 ## Hardware Requirements 
 
@@ -59,11 +76,5 @@ All experiments were conducted on a DGX A100 Architecture, which consists of 8 n
 
 
 ## TODO
-
-
-- [ ] merge the finetuned tinybert with pretrained unfinetuned bert base --> save hyperparameters and wieghts(how the hell do i merge them?)
-- [ ] run infernce on datasets using bert base
-- [ ] run inference on datasets using merge model
-- [ ] comprare the two models (comparison in terms of metrics and flops (are flops the most suitable choice here?))
-- [ ] remember to create the environment .txt
+- [ ] remember to update the environment .txt
 
