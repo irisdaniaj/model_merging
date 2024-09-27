@@ -41,7 +41,7 @@ Now, run model_download.py to download the models(BERT Base uncased and TinyBERT
 ```
 python model_download.py
 ```
-We will now fine-tune TinyBERT on each dataset and save the corresponding hyperparameters and model metrics in `training_args.json` and `metrics.json` files, respectively, for each dataset. This process will create three new subfolders within the `models/tinybert` directory, each named after a specific dataset (sst2, rte). Each subfolder will contain the fine-tuned model, the tokenizer, and the associated configuration files, allowing for easy access and reproducibility.
+We will now fine-tune TinyBERT on two datasets([Stanford Sentiment Treeban (SST-2)](https://huggingface.co/datasets/stanfordnlp/sst2) and [Recognizing Textual Entailmen (RTE)](https://metatext.io/datasets/recognizing-textual-entailment-(rte)))and save the corresponding hyperparameters and model metrics in `training_args.json` and `metrics.json` files, respectively, for each dataset. This process will create three new subfolders within the `models/tinybert` directory, each named after a specific dataset (sst2, rte). Each subfolder will contain the fine-tuned model, the tokenizer, and the associated configuration files, allowing for easy access and reproducibility.
 ```
 python finetune_tinybert.py
 ```
@@ -64,7 +64,7 @@ and
 ```
 python evaluate_merging.py
 ```
-the results will be saved in the `results` folder. 
+the results will be saved in `.json` format the `results` folder. 
 
 ## Results
 
