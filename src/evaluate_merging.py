@@ -14,7 +14,8 @@ warnings.filterwarnings("ignore")
 transformers_logging.set_verbosity_error()
 # Paths to the saved merged models
 models_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "merged_model")
-snli_model_checkpoint = os.path.join(models_path, "rte", "best_model", "checkpoints")  # Adjust this if necessary
+snli_model_checkpoint = os.path.join(models_path, "rte", "best_model", "checkpoints") 
+mrpc_model_checkpoint = os.path.join(models_path, "rte", "best_model", "checkpoints") # Adjust this if necessary
 imdb_model_checkpoint = os.path.join(models_path, "sst2", "best_model", "checkpoints")  # Adjust this if necessary
 
 # Function to load model and tokenizer
@@ -146,9 +147,74 @@ def run_inference_imdb():
 
     print(f"IMDb Results saved to {results_save_path}")
 
+def run_inference_mrpc():
+    print("Running inference on MRPC dataset using the merged model")
+
+    # Load the MRPC dataset from the GLUE benchmark
+    mrpc_dataset = load_dataset("glue", "mrpc", split="test").shuffle(seed=42) #.select(range(500))  # Use a subsample for efficiency
+
+    # Load the merged MRPC model for paraphrase classification
+    model, tokenizer = load_model_and_tokenizer(mrpc_model_checkpoint)
+
+    # Set model to evaluation mode
+    model.eval()
+
+    # Initialize variables for accuracy and FLOPs calculation
+    correct_predictions = 0
+    total_predictions = 0
+    total_flops = 0
+
+    # Run inference on the MRPC dataset
+    for example in tqdm(mrpc_dataset):
+        sentence1 = example["sentence1"]
+        sentence2 = example["sentence2"]
+        true_label = example["label"]  # 1: paraphrase, 0: not paraphrase
+
+        # Tokenize the input sentence pair
+        inputs = tokenizer(sentence1, sentence2, return_tensors="pt", padding="max_length", truncation=True, max_length=128)
+
+        # Make prediction
+        with torch.no_grad():
+            outputs = model(**inputs)
+            logits = outputs.logits
+            predicted_class = torch.argmax(logits, dim=1).item()
+
+            # Calculate accuracy
+            if predicted_class == true_label:
+                correct_predictions += 1
+            total_predictions += 1
+
+            # Calculate FLOPs for this inference
+            flops = calculate_flops(model, inputs)
+            total_flops += flops
+
+    # Calculate final accuracy
+    accuracy = correct_predictions / total_predictions * 100
+    print(f"Accuracy on MRPC test set: {accuracy:.2f}%")
+
+    # Report FLOPs
+    print(f"Total FLOPs for MRPC test set: {total_flops:.2e} FLOPs")
+
+    # Save results to a JSON file
+    results_filename = "mrpc_merged_results.json"
+    results_save_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", results_filename)
+
+    # Save results to the correct path
+    results = {
+        "accuracy": accuracy,
+        "total_flops": total_flops
+    }
+
+    # Ensure the 'results' directory exists, if not create it
+    os.makedirs(os.path.dirname(results_save_path), exist_ok=True)
+
+    with open(results_save_path, "w") as f:
+        json.dump(results, f)
+
+    print(f"MRPC Results saved to {results_save_path}")
+
 if __name__ == "__main__":
     # Run inference on SNLI
-    run_inference_snli()
-
-    # Run inference on IMDb
-    run_inference_imdb()
+    #run_inference_snli()
+    #run_inference_imdb()
+    run_inference_mrpc()

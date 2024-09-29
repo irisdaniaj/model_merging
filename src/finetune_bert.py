@@ -56,7 +56,7 @@ for dataset_name in datasets_to_finetune:
 
     # Determine the metric for best model based on the dataset
 
-    metric_for_best_model = "eval_loss"  # Classification tasks
+    metric_for_best_model = "accuracy"  # Classification tasks
 
     # Define training arguments for fine-tuning BERT base
     training_args = TrainingArguments(
