@@ -66,15 +66,12 @@ python evaluate_merging.py
 ```
 the results will be saved in `.json` format in the `results` folder. 
 
-## Results
 
 ## Hardware Requirements 
 
 All experiments were conducted on a DGX A100 Architecture, which consists of 8 nodes, each with 256 CPU cores, 1 TB of memory, and 8 NVIDIA A100 GPUs, each providing 40 GB of GPU memory. If your system has less computing power or memory, consider using a dedicated computing cluster or cloud-based resources to ensure efficient and effective fine-tuning.
 
 
+## Note 
 
-
-## TODO
-- [ ] remember to update the environment .txt
-
+This repository contains my final project for seminar in Automated Machine Learning (in the age ofLarge (Pre-trained) Models) at Ludwig-Maximilians-Universität München, SoSe 2024
